@@ -484,13 +484,55 @@ function showQueue() {
       <div class="choices">${it.e.choices.map((c, i) => `<button class="btn choice" data-c="${i}">${esc(c.l)}</button>`).join('')}</div>`);
     $$('[data-c]').forEach(b => b.onclick = () => { S.queue.shift(); closeModal(); resolveChoice(it.e, it.e.choices[+b.dataset.c], it.text, false); doneQueue(); });
   } else if (it.type === 'reflect') {
+    const answers = reflectionChoices(it.age);
     openModal(`<p class="eyebrow">เวลาหยุดลงชั่วขณะ · อายุ ${it.age} ปี</p><h3>${esc(it.q)}</h3>
-      <textarea id="refTxt" rows="3" maxlength="300" placeholder="เขียนสักบรรทัด (หรือข้ามก็ได้)"></textarea>
-      <div class="row end"><button class="btn ghost" id="refSkip">ข้าม</button><button class="btn" id="refOk">บันทึก</button></div>`);
-    const done = save => { const v = $('#refTxt').value.trim(); if (save && v) { S.reflections.push({ age: it.age, q: it.q, a: v }); log(`✎ "${v}"`, 'thought'); } S.queue.shift(); closeModal(); doneQueue(); };
-    $('#refOk').onclick = () => done(true); $('#refSkip').onclick = () => done(false);
-    setTimeout(() => $('#refTxt')?.focus(), 50);
+      <p class="muted small">เลือกคำตอบที่ตรงใจ หรือเขียนคำตอบของคุณเองก็ได้</p>
+      <div class="choices">${answers.map((a, i) => `<button class="btn choice" data-ref="${i}">${esc(a.text)}</button>`).join('')}</div>
+      <details class="reflect-write"><summary>เขียนคำตอบเอง</summary><textarea id="refTxt" rows="2" maxlength="300" placeholder="เขียนสักบรรทัด"></textarea><div class="row end"><button class="btn sm" id="refOk">บันทึกคำตอบ</button></div></details>
+      <div class="row end"><button class="btn ghost sm" id="refSkip">ข้ามคำถามนี้</button></div>`);
+    const done = answer => {
+      if (answer) {
+        S.reflections.push({ age: it.age, q: it.q, a: answer });
+        const picked = answers.find(a => a.text === answer);
+        if (picked?.fx) applyFx(S, picked.fx);
+        log(`✎ ตอบคำถามอายุ ${it.age}: ${answer}`, picked?.fx ? fxKind(picked.fx) : 'thought');
+      }
+      S.queue.shift(); closeModal(); doneQueue();
+    };
+    $$('[data-ref]').forEach(b => b.onclick = () => done(answers[+b.dataset.ref].text));
+    $('#refOk').onclick = () => { const v = $('#refTxt').value.trim(); if (v) done(v); };
+    $('#refSkip').onclick = () => done('');
   }
+}
+function reflectionChoices(age) {
+  const choices = {
+    5: [
+      { text: 'สีฟ้า — เหมือนท้องฟ้าที่กว้างมาก', fx: { happy: 2, know: 1 } },
+      { text: 'สีเหลือง — สดใสเหมือนวันที่ได้เล่น', fx: { happy: 3 } },
+      { text: 'สีเขียว — เหมือนต้นไม้ที่บ้าน', fx: { rel: 2, health: 1 } },
+    ],
+    15: [
+      { text: 'อยากเป็นคนที่ได้ทำสิ่งที่รัก', fx: { happy: 3 } },
+      { text: 'อยากเป็นคนที่ช่วยดูแลครอบครัวได้', fx: { rel: 3 } },
+      { text: 'ยังไม่รู้ ขอค่อย ๆ ค้นหาตัวเอง', fx: { know: 2, happy: 1 } },
+    ],
+    30: [
+      { text: 'ความสุขเกิดจากการเห็นคุณค่าของสิ่งเล็ก ๆ', fx: { happy: 3 } },
+      { text: 'คนรอบตัวทำให้ผ่านเรื่องยากมาได้', fx: { rel: 3 } },
+      { text: 'เรายังเปลี่ยนเส้นทางชีวิตได้เสมอ', fx: { know: 2, happy: 1 } },
+    ],
+    50: [
+      { text: 'อย่ากลัวที่จะลอง แม้จะยังไม่พร้อม', fx: { happy: 2, know: 2 } },
+      { text: 'ดูแลสุขภาพและคนที่รักให้ดี', fx: { health: 2, rel: 2 } },
+      { text: 'ไม่ต้องรีบ ชีวิตมีจังหวะของตัวเอง', fx: { happy: 3 } },
+    ],
+    70: [
+      { text: 'ขอบคุณครอบครัวที่อยู่เคียงข้างกัน', fx: { rel: 3, happy: 2 } },
+      { text: 'ขอบคุณเพื่อนที่ทำให้มีเสียงหัวเราะ', fx: { rel: 3, happy: 2 } },
+      { text: 'ขอบคุณตัวเองที่เดินทางมาถึงวันนี้', fx: { happy: 3 } },
+    ],
+  };
+  return choices[age] || [];
 }
 function doneQueue() { if (!S.queue.length) $('#waitFlag').hidden = true; render(); lastT = 0; }
 
