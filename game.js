@@ -329,6 +329,18 @@ function homeInit() {
   sel.value = settings.real;
   renderPast();
   show('home');
+  renderScene($('#homeScene'), homeSnap(), { fresh: true });
+}
+
+// ตัวอย่างผู้คนจากทั่วโลกบนหน้าแรก (สุ่มประเทศตามจำนวนเด็กเกิด)
+function homeSnap() {
+  const ages = [2, 9, 17, 31, 46, 74].sort(() => Math.random() - 0.5);
+  const members = ages.map((age, i) => {
+    const c = pickW(COUNTRIES, x => x.births), g = Math.random() < 0.5 ? 'M' : 'F';
+    const pool = (NAMES_BY_COUNTRY[c.id] || NAMES[c.reg] || NAMES.SEA)[g];
+    return { id: 'h' + i, g, age, ...regionLook(c.reg), shirt: pickArr(SHIRTS), hairStyle: Math.floor(Math.random() * 3), glasses: Math.random() < 0.2, name: pickArr(pool), label: c.th, mood: 75 };
+  });
+  return { level: 2 + Math.floor(Math.random() * 2), bg: { age: 30, c: { reg: 'SEA' } }, members };
 }
 
 function renderPast() {

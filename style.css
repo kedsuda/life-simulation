@@ -60,6 +60,8 @@ details.panel summary { cursor: pointer; font-weight: 700; }
 /* home */
 .hero { text-align: center; padding: 40px 0 24px; }
 .hero h1 { font-size: clamp(2.6rem, 9vw, 4.2rem); margin-bottom: .2em; }
+#homeScene { height: 230px; margin: 20px 0 6px; }
+#homeScene .homeTag { display: none; }
 .counters { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 28px auto; max-width: 480px; }
 .counters div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .counters b { display: block; font-size: 1.6rem; font-variant-numeric: tabular-nums; }
