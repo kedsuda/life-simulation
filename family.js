@@ -253,7 +253,8 @@ function avatarSVG(p) {
 function homeLevel(s) {
   const inc = s.money && s.money.income > 0 && s.f.leftHome ? s.money.income : s.famIncome;
   const w = worldPct(inc);
-  return w < 0.25 ? 0 : w < 0.5 ? 1 : w < 0.75 ? 2 : w < 0.92 ? 3 : 4;
+  const lv = w < 0.25 ? 0 : w < 0.5 ? 1 : w < 0.75 ? 2 : w < 0.92 ? 3 : 4;
+  return Math.min(4, lv + (s.f && s.f.house && s.f.leftHome ? 1 : 0));
 }
 const HOME_NAMES = ['กระท่อมหลังเล็ก', 'บ้านสังกะสี', 'ห้องแถวในเมือง', 'บ้านเดี่ยวมีสวน', 'บ้านหลังใหญ่'];
 

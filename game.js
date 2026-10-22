@@ -123,7 +123,7 @@ function newLife(profile) {
     profile, c, g: profile.g, q: profile.q, lt, pFam, famIncome,
     age: 0, year: new Date().getFullYear(), alive: true, born: Date.now(),
     st: { health: clamp(55 + (c.le[profile.g === 'M' ? 0 : 1] - 50) * 0.9 + profile.q * 2 + rnd(-6, 6), 30, 95), happy: 60 + rnd(-8, 8), know: 5, rel: 55 + rnd(-6, 6) },
-    money: { income: 0, savings: 0, invest: 0, earned: 0 },
+    money: newMoney(), life: newLifeStyle(), wealth: [],
     f: { family: profile.f, sibs: profile.s, school: false, eduLevel: 0, eduEnd: 0, job: null, partner: false, married: false, kids: 0 },
     focus: 'balance', used: new Set(), log: [], mood: [], marks: {}, reflections: [], thoughts: [], queue: [],
     cohort: [], cause: null, number: usedCount(),
@@ -146,11 +146,12 @@ function newLife(profile) {
   return s;
 }
 
-function applyFx(s, fx) {
+function applyFx(s, fx, label = 'เหตุการณ์ในชีวิต') {
   if (!fx) return;
   for (const k of ['health', 'happy', 'know', 'rel']) if (fx[k]) s.st[k] = clamp(s.st[k] + fx[k], 0, 100);
-  if (fx.cash) s.money.savings += fx.cash * s.base();
+  if (fx.cash) pay(s, fx.cash * s.base(), label);
 }
+const short = t => t.length > 38 ? t.slice(0, 36) + '…' : t;
 
 function log(text, kind = '') {
   S.log.push({ age: S.age, text, kind, pin: false });
@@ -186,7 +187,7 @@ function advanceYear() {
   if (!s.f.school && !s.f.job && !s.f.retired && a >= Math.max(workAge, s.f.eduEnd) && a < 75) {
     if (Math.random() < 0.45 + s.st.know / 200 + (c.gdp < 10 ? 0.3 : 0)) findJob(s);
   }
-  if (s.f.job && !s.f.retired && a < 50) s.money.income *= 1.02;
+  if (s.f.job && !s.f.retired && a < 50) s.money.income *= 1.02 + (s.focus === 'work' ? 0.015 : 0);
 
   // สถานะรายปี
   const st = s.st, foc = s.focus, know0 = st.know;
@@ -200,20 +201,13 @@ function advanceYear() {
   const relTarget = 45 + (s.f.partner ? 12 : 0) + Math.min(s.f.kids, 3) * 4 + (s.f.family === 'extended' ? 4 : 0) - (s.f.migrant ? 8 : 0) - (a > 70 ? (a - 70) * 0.5 : 0);
   st.rel += (relTarget - st.rel) * 0.15 + (foc === 'love' ? 3 : 0) + gauss() * 1.5;
   const pNow = s.money.income > 0 ? clamp(countryPct(s, s.money.income), 0, 1) : s.pFam;
-  const happyTarget = 30 + pNow * 22 + st.rel * 0.22 + st.health * 0.18 + (s.f.partner ? 5 : 0) - (s.money.savings < 0 ? 8 : 0) + (foc === 'balance' ? 4 : 0);
+  const happyTarget = 30 + pNow * 22 + st.rel * 0.22 + st.health * 0.18 + (s.f.partner ? 5 : 0) - (s.money.savings < 0 ? 8 : 0) + (foc === 'balance' ? 4 : 0) - (foc === 'work' && s.f.job ? 2 : 0);
   st.happy += (happyTarget - st.happy) * 0.25 + gauss() * 2.5;
 
-  // การเงิน
-  if (s.money.income > 0) {
-    const inc = s.money.income * (s.f.job ? 1 : 0.3);
-    s.money.earned += inc;
-    const saveRate = clamp(0.03 + pNow * 0.15 + (foc === 'work' ? 0.05 : 0) - s.f.kids * 0.02, -0.05, 0.3);
-    s.money.savings += inc * saveRate;
-  }
-  if (s.money.savings < 0) s.money.savings *= 1.06; // ดอกเบี้ยหนี้
-  if (settings.auto && a >= 25 && s.money.savings > s.base()) { s.money.invest += s.money.savings * 0.3; s.money.savings *= 0.7; }
-  if (s.money.invest > 0) s.money.invest *= 1 + 0.05 + gauss() * 0.13;
   for (const k in st) st[k] = clamp(st[k], 0, 100);
+
+  // การเงิน: รายรับ รายจ่าย ผลตอบแทน หนี้ (money.js) — เหตุการณ์หลังจากนี้จะบันทึกลงปีเดียวกัน
+  yearMoney(s);
 
   // เหตุการณ์ (ไม่ซ้ำในชีวิตเดียว)
   rollEvent(s);
@@ -223,7 +217,7 @@ function advanceYear() {
   lifeStageFamily(s);
 
   // คำถามสะท้อนตัวเอง
-  if (REFLECT_AGES[a] && !settings.auto) s.queue.push({ type: 'reflect', q: REFLECT_AGES[a], age: a });
+  if (REFLECT_AGES[a] && !settings.auto) s.queue.push({ type: 'reflect', q: REFLECT_AGES[a](s), age: a });
 
   // ความตาย
   let q = s.lt.q(a) * (a >= 1 ? WEALTH_MORT[s.q] * Math.exp((HEALTH_REF - st.health) / 30) : WEALTH_MORT[s.q]);
@@ -265,19 +259,37 @@ function rollEvent(s) {
   if (!e) return;
   s.used.add(e.id);
   let text = typeof e.t === 'function' ? e.t(s) : e.t;
-  if (!e.choices) { const r = e.apply ? e.apply(s) : null; if (r) text = r; applyFx(s, e.fx); log(text, fxKind(e.fx)); return; }
+  if (!e.choices) { const r = e.apply ? e.apply(s) : null; if (r) text = r; applyFx(s, e.fx, short(text)); log(text, fxKind(e.fx)); return; }
   if (e.apply) e.apply(s);
   if (settings.auto) {
-    const ch = e.choices.find(x => x.tag === s.focus) || e.choices[Math.floor(Math.random() * e.choices.length)];
+    const opts = e.choices.filter(x => !x.need || x.need(s));
+    const ch = opts.find(x => x.tag === s.focus) || opts[Math.floor(Math.random() * opts.length)];
     resolveChoice(e, ch, text, true);
   } else s.queue.push({ type: 'decision', e, text });
 }
 
 function resolveChoice(e, ch, text, auto) {
   let res = ch.t;
+  const label = ch.money || ch.l;
+  const cost = ch.cost ? ch.cost(S) : 0;
+  if (cost) pay(S, -cost, label);
   if (ch.apply) { const r = ch.apply(S); if (r) res = r; }
-  applyFx(S, ch.fx);
-  log(`${text} → ${auto ? '(อัตโนมัติ) ' : ''}${ch.l}: ${res}`, 'choice');
+  applyFx(S, ch.fx, label);
+  const head = e.ask ? `${text} ${e.ask}` : text;
+  log(`${head} → ${auto ? '(อัตโนมัติ) ' : ''}${ch.l}${cost ? ` (−${fmtBaht(cost)})` : ''}: ${res}`, 'choice');
+}
+// คำใบ้ผลของแต่ละทางเลือก (บอกทิศทาง ไม่บอกตัวเลข)
+const FX_TH = { health: 'สุขภาพ', happy: 'ความสุข', know: 'ความรู้', rel: 'ความสัมพันธ์' };
+function choiceHint(ch) {
+  const out = [];
+  for (const k in FX_TH) { const v = ch.fx?.[k]; if (v) out.push(`${FX_TH[k]} ${v > 0 ? '↑' : '↓'}${Math.abs(v) >= 8 ? (v > 0 ? '↑' : '↓') : ''}`); }
+  if (ch.h) out.push(ch.h);
+  return out.join(' · ');
+}
+function choicePrice(ch) {
+  const c = ch.cost ? ch.cost(S) : ch.fx?.cash ? -ch.fx.cash * S.base() : 0;
+  if (Math.abs(c) < 1) return '';
+  return `<span class="price ${c > 0 ? 'neg' : 'pos'}">${c > 0 ? '−' : '+'}${fmtBaht(Math.abs(c))}</span>`;
 }
 const fxKind = fx => { if (!fx) return ''; const v = (fx.health || 0) + (fx.happy || 0) + (fx.rel || 0) + (fx.know || 0); return v > 3 ? 'good' : v < -3 ? 'bad' : ''; };
 
@@ -409,18 +421,12 @@ function render() {
   const fam = [
     ['การศึกษา', s.age < 6 ? '—' : edu],
     ['งาน', s.f.job || (s.f.retired ? 'เกษียณ' : s.age < 15 ? '—' : 'ว่างงาน')],
-    ['รายได้', s.money.income > 0 ? `${fmtBaht(s.money.income / 12)}/เดือน` : `ครอบครัว ${fmtBaht(s.famIncome / 12)}/เดือน`],
-    ['เงินเก็บ', (s.money.savings < 0 ? 'หนี้ ' : '') + fmtBaht(Math.abs(s.money.savings))],
-    ['เงินลงทุน', fmtBaht(s.money.invest)],
     ['คู่ชีวิต', s.f.married ? 'แต่งงานแล้ว' : s.f.partner ? 'มีแฟน' : s.f.widowed ? 'เป็นหม้าย' : 'โสด'],
     ['ลูก', s.f.kids ? `${s.f.kids} คน` : '—'],
     ['บ้าน', HOME_NAMES[homeLevel(s)]],
   ];
   $('#famInfo').innerHTML = fam.map(r => `<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('');
-  const canMoney = s.age >= 18 && s.alive;
-  $('#spendBtn').disabled = !canMoney || s.money.savings < s.base() * 0.1;
-  $('#investBtn').disabled = !canMoney || s.money.savings <= 0;
-  $('#withdrawBtn').disabled = !canMoney || s.money.invest <= 0;
+  renderMoney();
   renderMap(); renderCurve(); renderCohort();
   renderScene($('#scene'), snapOf(s));
   renderFamList();
@@ -480,8 +486,11 @@ function showQueue() {
   $('#waitFlag').hidden = false;
   const it = S.queue[0];
   if (it.type === 'decision') {
-    openModal(`<p class="eyebrow">อายุ ${S.age} ปี · การตัดสินใจ</p><h3>${esc(it.text)}</h3>
-      <div class="choices">${it.e.choices.map((c, i) => `<button class="btn choice" data-c="${i}">${esc(c.l)}</button>`).join('')}</div>`);
+    const ok = it.e.choices.filter(c => !c.need || c.need(S)), m = S.money;
+    openModal(`<p class="eyebrow">อายุ ${S.age} ปี · การตัดสินใจ</p>
+      ${it.e.ask ? `<p class="ctx">${esc(it.text)}</p><h3>${esc(it.e.ask)}</h3>` : `<h3>${esc(it.text)}</h3>`}
+      <div class="choices">${ok.map(c => `<button class="btn choice" data-c="${it.e.choices.indexOf(c)}"><span class="cl"><b>${esc(c.l)}</b>${choicePrice(c)}</span>${choiceHint(c) ? `<small>${esc(choiceHint(c))}</small>` : ''}</button>`).join('')}</div>
+      <p class="muted small moneyline">${m.savings < 0 ? 'หนี้' : 'เงินเก็บ'}ตอนนี้ ${fmtBaht(Math.abs(m.savings))} · จำนวนเงินเทียบค่าครองชีพไทย</p>`);
     $$('[data-c]').forEach(b => b.onclick = () => { S.queue.shift(); closeModal(); resolveChoice(it.e, it.e.choices[+b.dataset.c], it.text, false); doneQueue(); });
   } else if (it.type === 'reflect') {
     const answers = reflectionChoices(it.age);
@@ -507,29 +516,31 @@ function showQueue() {
 function reflectionChoices(age) {
   const choices = {
     5: [
-      { text: 'สีฟ้า — เหมือนท้องฟ้าที่กว้างมาก', fx: { happy: 2, know: 1 } },
-      { text: 'สีเหลือง — สดใสเหมือนวันที่ได้เล่น', fx: { happy: 3 } },
-      { text: 'สีเขียว — เหมือนต้นไม้ที่บ้าน', fx: { rel: 2, health: 1 } },
+      { text: 'คล้ายกันมาก — มีคนดูแล ได้เล่นทุกวัน', fx: { happy: 2, rel: 1 } },
+      { text: 'ต่างกันมาก — ฉันได้อะไรหลายอย่างที่คนคนนี้ไม่ได้', fx: { know: 2, rel: 1 } },
+      { text: 'ต่างกัน แต่เด็กทุกคนอยากได้ความรักเหมือนกัน', fx: { rel: 3 } },
     ],
     15: [
-      { text: 'อยากเป็นคนที่ได้ทำสิ่งที่รัก', fx: { happy: 3 } },
-      { text: 'อยากเป็นคนที่ช่วยดูแลครอบครัวได้', fx: { rel: 3 } },
-      { text: 'ยังไม่รู้ ขอค่อย ๆ ค้นหาตัวเอง', fx: { know: 2, happy: 1 } },
+      { text: 'เรียนหนังสือ อ่านหนังสือสอบ', fx: { know: 3 } },
+      { text: 'อยู่กับเพื่อน เล่นกีฬา หรือทำกิจกรรม', fx: { rel: 2, health: 1 } },
+      { text: 'ช่วยงานที่บ้านหรือทำงานหาเงิน', fx: { rel: 2, know: 1 } },
+      { text: 'อยู่กับตัวเอง คิดเรื่องอนาคตเงียบ ๆ', fx: { happy: 2 } },
     ],
     30: [
-      { text: 'ความสุขเกิดจากการเห็นคุณค่าของสิ่งเล็ก ๆ', fx: { happy: 3 } },
-      { text: 'คนรอบตัวทำให้ผ่านเรื่องยากมาได้', fx: { rel: 3 } },
-      { text: 'เรายังเปลี่ยนเส้นทางชีวิตได้เสมอ', fx: { know: 2, happy: 1 } },
+      { text: 'ไม่ — ฉันก็คงเลือกแบบนี้เหมือนกัน', fx: { happy: 3 } },
+      { text: 'ใช่ — ฉันจะกล้าเสี่ยงมากกว่านี้', fx: { know: 2, happy: 1 } },
+      { text: 'ใช่ — ฉันจะให้เวลากับคนที่รักมากกว่านี้', fx: { rel: 3 } },
+      { text: 'ไม่แน่ใจ ทางเลือกของคนคนนี้มีไม่มากนัก', fx: { know: 2 } },
     ],
     50: [
-      { text: 'อย่ากลัวที่จะลอง แม้จะยังไม่พร้อม', fx: { happy: 2, know: 2 } },
-      { text: 'ดูแลสุขภาพและคนที่รักให้ดี', fx: { health: 2, rel: 2 } },
-      { text: 'ไม่ต้องรีบ ชีวิตมีจังหวะของตัวเอง', fx: { happy: 3 } },
+      { text: 'มาก — เงินทำให้มีทางเลือกและไม่ต้องกังวล', fx: { happy: 1, know: 2 } },
+      { text: 'พอประมาณ — ขอแค่มีพอใช้ ไม่เป็นหนี้', fx: { happy: 3 } },
+      { text: 'น้อย — ความสัมพันธ์และสุขภาพสำคัญกว่า', fx: { rel: 2, health: 1 } },
     ],
     70: [
-      { text: 'ขอบคุณครอบครัวที่อยู่เคียงข้างกัน', fx: { rel: 3, happy: 2 } },
-      { text: 'ขอบคุณเพื่อนที่ทำให้มีเสียงหัวเราะ', fx: { rel: 3, happy: 2 } },
-      { text: 'ขอบคุณตัวเองที่เดินทางมาถึงวันนี้', fx: { happy: 3 } },
+      { text: 'ขอบคุณที่อดทนมาจนถึงวันนี้', fx: { happy: 3 } },
+      { text: 'ชีวิตคุณสอนอะไรฉันหลายอย่าง', fx: { know: 2, happy: 2 } },
+      { text: 'ฉันขอโทษที่บางเรื่องไม่เป็นอย่างที่หวัง', fx: { rel: 2, happy: 1 } },
     ],
   };
   return choices[age] || [];
@@ -547,7 +558,9 @@ function showDeath() {
     name: s.name, scene: snapOf(s), famLeft: household(s).length, cid: s.c.id, title: `${s.name} · ${gTh} · ${s.c.th} · ${s.age} ปี`, sub: `${s.cause} · ${QUINTILES[s.q].short}`,
     age: s.age, cause: s.cause, country: s.c.th, le: s.lt.LE, gender: gTh, q: QUINTILES[s.q].th,
     job: s.f.job || (s.f.retired ? 'เกษียณ' : '—'), kids: s.f.kids, married: s.f.married || s.f.widowed,
-    earned: s.money.earned, worldPct: Math.round(wp * 100), stats: Object.fromEntries(Object.entries(s.st).map(([k, v]) => [k, Math.round(v)])),
+    earned: s.money.earned, worldPct: Math.round(wp * 100), left: netWorth(s), wealth: s.wealth.map(v => v == null ? null : Math.round(v)),
+    heirs: s.f.partner ? 'คู่ชีวิต' + (s.f.kids ? ` และลูก ${s.f.kids} คน` : '') : s.f.kids ? `ลูก ${s.f.kids} คน` : 'ญาติ',
+    summary: lifeSummary(s), stats: Object.fromEntries(Object.entries(s.st).map(([k, v]) => [k, Math.round(v)])),
     pinned: s.log.filter(l => l.pin).map(l => `${l.age} ปี — ${l.text}`),
     reflections: s.reflections, mood: s.mood, number: s.number,
     cohort: s.cohort.map(m => `${m.c.id}|${GENDERS.find(g => g.id === m.p.g).th} · ${m.c.th} — ${m.alive ? `ยังมีชีวิต (${m.age} ปี)` : `จากไปเมื่ออายุ ${m.age} ปี`}`),
@@ -567,10 +580,13 @@ function showDeathCard(d, fresh = false) {
     ${d.scene ? '<div class="scene" id="deathScene"></div>' : ''}
     <p class="lead">สาเหตุ: ${esc(d.cause)} · ${Math.round(diff) === 0 ? 'ใกล้เคียงกับอายุคาดเฉลี่ยพอดี' : diff > 0 ? `อยู่ได้นานกว่าอายุคาดเฉลี่ย ${diff.toFixed(0)} ปี` : `จากไปก่อนอายุคาดเฉลี่ย ${(-diff).toFixed(0)} ปี`} (${d.le} ปี)</p>
     <div class="moodstrip">${moodCells}</div>
+    ${d.summary ? `<p class="summary serif">${esc(d.summary)}</p>` : ''}
+    ${d.wealth && d.wealth.some(v => v != null) ? `<div class="panel"><h4>ทรัพย์สินสุทธิตลอดชีวิต <small class="muted">เทียบค่าครองชีพไทย</small></h4><svg viewBox="-6 -6 312 112" class="curve">${wealthSVG(d.wealth, d.age)}</svg></div>` : ''}
     <div class="grid2">
       <div class="panel"><h4>สรุปชีวิต</h4><dl class="kv">
         <dt>ฐานะตอนเกิด</dt><dd>${esc(d.q)}</dd><dt>อาชีพสุดท้าย</dt><dd>${esc(d.job)}</dd>
         <dt>รายได้รวมตลอดชีวิต</dt><dd>${fmtBaht(d.earned)}</dd><dt>รวยกว่าคนทั้งโลก</dt><dd>${d.worldPct}%</dd>
+        ${d.left != null ? `<dt>ทรัพย์สินที่เหลือไว้</dt><dd>${d.left < 0 ? 'หนี้ ' : ''}${fmtBaht(Math.abs(d.left))}${d.left > 0 ? ` · ส่งต่อให้${esc(d.heirs)}` : ''}</dd>` : ''}
         <dt>ครอบครัว</dt><dd>${d.married ? 'เคยแต่งงาน' : 'ไม่ได้แต่งงาน'} · ลูก ${d.kids} คน</dd>
         ${d.famLeft != null ? `<dt>อยู่ข้างกายตอนจากไป</dt><dd>${d.famLeft ? d.famLeft + ' คน' : 'ไม่มีใคร'}</dd>` : ''}
         <dt>สถานะสุดท้าย</dt><dd>สุขภาพ ${d.stats.health} · ความสุข ${d.stats.happy} · ความรู้ ${d.stats.know} · ความสัมพันธ์ ${d.stats.rel}</dd>
@@ -758,9 +774,7 @@ function wire() {
     $('#mNo').onclick = () => { closeModal(); paused = false; lastT = 0; };
     $('#mYes').onclick = () => { closeModal(); cancelAnimationFrame(rafId); S = null; paused = false; homeInit(); };
   };
-  $('#spendBtn').onclick = () => { const amt = S.base() * 0.1; S.money.savings -= amt; applyFx(S, { happy: 4, health: 1 }); log(`คุณใช้เงิน ${fmtBaht(amt)} ดูแลตัวเองและคนที่รัก`, 'good'); render(); };
-  $('#investBtn').onclick = () => { const amt = S.money.savings * 0.5; S.money.savings -= amt; S.money.invest += amt; log(`คุณนำเงิน ${fmtBaht(amt)} ไปลงทุน`); render(); };
-  $('#withdrawBtn').onclick = () => { S.money.savings += S.money.invest; log(`คุณถอนเงินลงทุน ${fmtBaht(S.money.invest)} กลับมา`); S.money.invest = 0; render(); };
+  $('#shopBtn').onclick = openShop;
   $('#log').onclick = e => { const li = e.target.closest('li[data-i]'); if (!li) return; const l = S.log[+li.dataset.i]; l.pin = !l.pin; renderLog(); };
   $('#againBtn').onclick = startBirth;
   $('#homeBtn').onclick = homeInit;

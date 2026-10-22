@@ -241,3 +241,32 @@ blockquote small { display: block; color: var(--muted); }
   .scene .people { justify-content: flex-start; padding-left: 3%; }
   .person .nm small { font-size: .58rem; }
 }
+
+/* เงิน */
+.neg { color: var(--bad); }
+.pos { color: var(--good); }
+.ledger { list-style: none; padding: 0; margin: 4px 0 8px; font-size: .85rem; }
+.ledger li { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+.ledger b { font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.curve.wealth { margin-top: 6px; }
+#moneyInfo { margin: 8px 0; }
+.choice { display: grid; gap: 2px; }
+.choice .cl { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.choice .cl b { font-weight: 500; }
+.choice small { color: var(--muted); font-size: .8rem; }
+.price { font-size: .85rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.modal-card .ctx { color: var(--muted); margin: 0 0 4px; }
+.moneyline { margin: 12px 0 0; }
+.modal-card:has(.shopbody) { max-width: 560px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.shopgrp { border-top: 1px solid var(--line); padding: 12px 0 4px; }
+.shopgrp h5 { margin: 0 0 6px; font-size: .95rem; }
+.shoplist { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.shoplist li { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.shoplist li > span, .opt > span { display: grid; font-size: .9rem; }
+.shoplist small, .opt small { color: var(--muted); font-size: .8rem; }
+.shoplist .btn { white-space: nowrap; min-width: 96px; }
+.opt { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; margin: 6px 0; cursor: pointer; }
+.opt.on { border-color: var(--accent); background: var(--surface-2); }
+.opt input { margin-top: 4px; accent-color: var(--accent); }
+.note { background: var(--surface-2); border-radius: 10px; padding: 8px 12px; font-size: .9rem; }
+.summary { font-size: 1.15rem; text-align: center; margin: 4px 0 16px; }

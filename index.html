@@ -75,7 +75,9 @@
         <li>ทุกครั้งที่กด "เกิดเลย" ระบบจะสุ่มประเทศ เพศ ครอบครัว จำนวนพี่น้อง และฐานะ ตามสถิติจริง — <b>ชีวิตที่สุ่มได้แล้วจะไม่ถูกสุ่มซ้ำอีก</b></li>
         <li>เหตุการณ์ในชีวิตแต่ละเรื่องเกิดได้เพียงครั้งเดียวต่อหนึ่งชีวิต</li>
         <li>เวลาเดินไปเอง คุณเลือกจุดเน้นในแต่ละช่วง และตัดสินใจเมื่อชีวิตถามคำถาม</li>
-        <li>ที่อายุ 5, 15, 30, 50 และ 70 เวลาจะหยุดให้คุณกดเลือกคำตอบหรือเขียนตอบคำถามสะท้อนตัวเอง</li>
+        <li>เงินทุกบาทมีที่มาที่ไป: รายได้ ค่าครองชีพ ค่าเลี้ยงลูก ค่ารักษา และหนี้ — กด "ใช้เงิน · ลงทุน" เพื่อเลือกวิถีชีวิต ประกัน และที่เก็บเงิน</li>
+        <li>การตัดสินใจบางอย่างต้องใช้เงิน ราคาจะแสดงบนปุ่มเป็นบาทตามค่าครองชีพไทย</li>
+        <li>ที่อายุ 5, 15, 30, 50 และ 70 เวลาจะหยุดถามว่าชีวิตของคนคนนี้ต่างจากชีวิตของคุณอย่างไร</li>
       </ul>
     </section>
     <footer class="foot">ข้อมูลประมาณการจาก UN, World Bank และ WHO (ปัดเศษ) เพื่อการเรียนรู้ · หากรู้สึกไม่สบายใจ โทรสายด่วนสุขภาพจิต 1323 ได้ตลอด 24 ชั่วโมง</footer>
@@ -137,11 +139,13 @@
               <option value="health">สุขภาพ</option>
             </select>
           </label>
-          <div class="moneybtns">
-            <button class="btn ghost sm" id="spendBtn">ใช้เงินดูแลตัวเอง</button>
-            <button class="btn ghost sm" id="investBtn">ลงทุน</button>
-            <button class="btn ghost sm" id="withdrawBtn">ถอนเงินลงทุน</button>
-          </div>
+        </section>
+        <section class="panel">
+          <div class="row between"><h4>เงิน <small class="muted">เทียบค่าครองชีพไทย</small></h4><button class="btn sm" id="shopBtn">ใช้เงิน · ลงทุน</button></div>
+          <div class="kvgrid" id="moneyInfo"></div>
+          <div id="ledger"></div>
+          <svg id="wealthChart" viewBox="-6 -6 312 112" class="curve wealth"></svg>
+          <p class="muted small">ทรัพย์สินสุทธิตามอายุ · ต่ำกว่าเส้นกลาง = หนี้มากกว่าทรัพย์สิน</p>
         </section>
       </div>
       <div class="col">
@@ -189,6 +193,7 @@
 <script src="data.js"></script>
 <script src="events.js"></script>
 <script src="family.js"></script>
+<script src="money.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
