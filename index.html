@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>หนึ่งในแปดพันล้าน</title>
+<meta name="description" content="เกมจำลองชีวิต: สุ่มเกิดเป็นหนึ่งในแปดพันล้านคนบนโลกตามสถิติจริง แล้วใช้ชีวิตที่มีเพียงครั้งเดียว — ทุกชีวิตไม่ซ้ำกัน">
+<meta property="og:title" content="หนึ่งในแปดพันล้าน — เกิดแบบสุ่ม แล้วใช้ชีวิตที่มีเพียงครั้งเดียว">
+<meta property="og:description" content="สุ่มเกิดในประเทศ ครอบครัว และฐานะตามสถิติจริงของโลก ทุกชีวิตไม่ซ้ำกัน ลองดูว่าชาตินี้คุณจะเป็นใคร">
+<meta property="og:type" content="website">
+<meta property="og:image" content="og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#b4532a">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@500;700&family=Noto+Sans+Thai:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ═════ HOME ═════ -->
+<section id="home" class="screen">
+  <div class="wrap narrow">
+    <div class="topbar"><span class="brand">1 ใน 8 พันล้าน</span><button class="iconbtn themeBtn" title="สว่างหรือมืด">◐</button></div>
+    <header class="hero">
+      <h1 class="serif">หนึ่งใน<br>แปดพันล้าน</h1>
+      <p class="lead">เกิดแบบสุ่ม แล้วใช้ชีวิตที่มีเพียงครั้งเดียว</p>
+      <div class="counters">
+        <div><b id="cBirth">0</b><span>ทารกที่เกิดตั้งแต่คุณเปิดหน้านี้</span></div>
+        <div><b id="cDeath">0</b><span>คนที่จากไปในช่วงเวลาเดียวกัน</span></div>
+      </div>
+      <button class="btn big" id="quickBtn">เกิดเลย</button>
+      <p class="muted small" id="usedInfo"></p>
+    </header>
+
+    <details class="panel">
+      <summary>กำหนดที่เกิด</summary>
+      <div class="form">
+        <label>ความยาวของชีวิต (เวลาเล่นจริง)
+          <select id="setMinutes">
+            <option value="5">ประมาณ 5 นาที (เร็ว)</option>
+            <option value="15">ประมาณ 15 นาที</option>
+            <option value="30">ประมาณ 30 นาที</option>
+            <option value="60">ประมาณ 1 ชั่วโมง</option>
+            <option value="90">ประมาณ 1.5 ชั่วโมง</option>
+          </select>
+          <small>ปรับตามอายุคาดเฉลี่ยของประเทศ เร่งความเร็วได้ระหว่างเล่น</small>
+        </label>
+        <label>วิธีสุ่มประเทศ
+          <select id="setMethod">
+            <option value="births">ตามจำนวนเด็กเกิดต่อปี (สมจริงที่สุด)</option>
+            <option value="pop">ตามสัดส่วนประชากร</option>
+          </select>
+        </label>
+        <label>ประเทศที่คุณเกิดจริง (ไม่บังคับ)
+          <select id="setReal"></select>
+          <small>ใช้เปรียบเทียบตอนจบเท่านั้น เก็บไว้ในเครื่องของคุณ</small>
+        </label>
+        <label class="check"><input type="checkbox" id="setSafe"> ตัดฉากที่หนักหรือน่ากลัวออก</label>
+        <button class="btn ghost sm" id="resetUsed">ล้างประวัติการสุ่ม</button>
+      </div>
+    </details>
+
+    <section class="panel">
+      <div class="row between"><h4>บันทึกชาติก่อน</h4><button class="link" id="clearPast">ลบทั้งหมด</button></div>
+      <ul class="past" id="pastList"></ul>
+    </section>
+
+    <section class="panel how">
+      <h4>วิธีเล่น</h4>
+      <ul>
+        <li>ทุกครั้งที่กด "เกิดเลย" ระบบจะสุ่มประเทศ เพศ ครอบครัว จำนวนพี่น้อง และฐานะ ตามสถิติจริง — <b>ชีวิตที่สุ่มได้แล้วจะไม่ถูกสุ่มซ้ำอีก</b></li>
+        <li>เหตุการณ์ในชีวิตแต่ละเรื่องเกิดได้เพียงครั้งเดียวต่อหนึ่งชีวิต</li>
+        <li>เวลาเดินไปเอง คุณเลือกจุดเน้นในแต่ละช่วง และตัดสินใจเมื่อชีวิตถามคำถาม</li>
+        <li>ที่อายุ 5, 15, 30, 50 และ 70 เวลาจะหยุดให้คุณเขียนอะไรสักบรรทัด</li>
+      </ul>
+    </section>
+    <footer class="foot">ข้อมูลประมาณการจาก UN, World Bank และ WHO (ปัดเศษ) เพื่อการเรียนรู้ · หากรู้สึกไม่สบายใจ โทรสายด่วนสุขภาพจิต 1323 ได้ตลอด 24 ชั่วโมง</footer>
+  </div>
+</section>
+
+<!-- ═════ BIRTH ═════ -->
+<section id="birth" class="screen" hidden>
+  <div class="wrap narrow center">
+    <p class="eyebrow" id="birthNo"></p>
+    <h2 class="serif">คุณได้เกิดมาแล้ว</h2>
+    <div class="scene" id="birthScene"></div>
+    <div class="brows" id="birthRows"></div>
+    <button class="btn big fadein" id="birthStart">เริ่มชีวิต</button>
+  </div>
+</section>
+
+<!-- ═════ LIFE ═════ -->
+<section id="life" class="screen" hidden>
+  <div class="wrap">
+    <div class="lifebar">
+      <div class="agebox"><b id="ageBig">0</b><span>ปี</span></div>
+      <div class="where" id="lifeWhere"></div>
+      <div class="tools">
+        <button class="tool" id="autoBtn" title="ตัดสินใจให้อัตโนมัติตามจุดเน้น">โหมดอัตโนมัติ</button>
+        <button class="tool" id="musicBtn">♪ เพลง</button>
+        <button class="tool" id="thinkBtn">✎ เขียนความคิด</button>
+        <button class="tool" id="safeBtn">ตัดฉากที่น่ากลัวออก</button>
+        <button class="tool themeBtn">◐</button>
+        <button class="tool" id="exitBtn">ออก</button>
+      </div>
+    </div>
+    <div class="progress"><i id="yearProgress"></i></div>
+    <div class="controls">
+      <button class="btn sm" id="pauseBtn">❚❚ หยุดชั่วคราว</button>
+      <div class="speeds" id="speeds"></div>
+      <button class="btn ghost sm" id="nextDecBtn">ไปยังการตัดสินใจถัดไป ⏭</button>
+      <span class="wait" id="waitFlag" hidden>● มีการตัดสินใจรออยู่</span>
+    </div>
+
+    <div class="scene" id="scene"></div>
+
+    <div class="lifegrid">
+      <div class="col">
+        <section class="panel">
+          <h4>สถานะ <small class="muted">0–100</small></h4>
+          <div id="stats"></div>
+        </section>
+        <section class="panel">
+          <h4>ครอบครัวและชีวิต</h4>
+          <ul class="famlist" id="famList"></ul>
+          <div class="kvgrid" id="famInfo"></div>
+          <label class="focus">จุดเน้นปีนี้
+            <select id="focus">
+              <option value="balance">สมดุล</option>
+              <option value="study">การเรียน</option>
+              <option value="work">การงาน / เงิน</option>
+              <option value="love">ความรักและคนรอบตัว</option>
+              <option value="health">สุขภาพ</option>
+            </select>
+          </label>
+          <div class="moneybtns">
+            <button class="btn ghost sm" id="spendBtn">ใช้เงินดูแลตัวเอง</button>
+            <button class="btn ghost sm" id="investBtn">ลงทุน</button>
+            <button class="btn ghost sm" id="withdrawBtn">ถอนเงินลงทุน</button>
+          </div>
+        </section>
+      </div>
+      <div class="col">
+        <section class="panel">
+          <h4>บันทึกชีวิตล่าสุด <small class="muted">แตะเพื่อปักหมุด ☆</small></h4>
+          <ul class="log" id="log"></ul>
+        </section>
+      </div>
+    </div>
+
+    <div class="lifegrid">
+      <section class="panel">
+        <h4>แผนที่ชีวิต <small class="muted">หนึ่งช่อง = หนึ่งปี · สีตามความสุข</small></h4>
+        <div class="lifemap" id="lifeMap"></div>
+      </section>
+      <section class="panel">
+        <h4>เส้นโค้งการรอดชีวิต</h4>
+        <svg id="curve" viewBox="-6 -6 312 132" class="curve"></svg>
+        <p class="muted small" id="curveTxt"></p>
+      </section>
+    </div>
+    <section class="panel">
+      <h4>คนที่เกิดในวินาทีเดียวกับคุณ <small class="muted">ชีวิตของพวกเขาเดินตามสถิติเดียวกัน</small></h4>
+      <ul class="cohort" id="cohort"></ul>
+    </section>
+    <footer class="foot">หากรู้สึกไม่สบายใจ โทรสายด่วนสุขภาพจิต 1323 ได้ตลอด 24 ชั่วโมง</footer>
+  </div>
+</section>
+
+<!-- ═════ DEATH ═════ -->
+<section id="death" class="screen" hidden>
+  <div class="wrap narrow">
+    <div class="topbar"><span class="brand">อนุสรณ์</span><button class="iconbtn themeBtn">◐</button></div>
+    <div id="deathBody"></div>
+    <div class="row center gap">
+      <button class="btn big" id="againBtn">เกิดใหม่อีกครั้ง</button>
+      <button class="btn ghost" id="shareBtn">แชร์ชีวิตนี้</button>
+      <button class="btn ghost" id="homeBtn">หน้าแรก</button>
+    </div>
+  </div>
+</section>
+
+<div class="modal" id="modal" hidden><div class="modal-card" id="modalBody"></div></div>
+
+<script src="data.js"></script>
+<script src="events.js"></script>
+<script src="family.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
