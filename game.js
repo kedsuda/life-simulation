@@ -127,6 +127,7 @@ function newLife(profile) {
     f: { family: profile.f, sibs: profile.s, school: false, eduLevel: 0, eduEnd: 0, job: null, partner: false, married: false, kids: 0 },
     focus: 'balance', used: new Set(), log: [], mood: [], marks: {}, reflections: [], thoughts: [], queue: [],
     cohort: [], cause: null, number: usedCount(),
+    recent: new Set(store.get('recentEvents', []).flat()), everSeen: new Set(store.get('everSeen', [])),
   };
   s.add = fx => applyFx(s, fx);
   s.base = () => s.money.income > 0 ? s.money.income : Math.max(s.famIncome * 0.5, 400);
@@ -169,18 +170,18 @@ function advanceYear() {
   // การศึกษา
   if (a === 6) {
     const p = clamp(0.5 + c.gdp / 35 + (s.q - 2) * 0.1 - (s.g === 'F' && c.gdp < 5 ? 0.15 : 0), 0.15, 0.995);
-    if (Math.random() < p) { s.f.school = true; log('วันแรกที่โรงเรียน คุณสะพายกระเป๋าใบใหญ่กว่าตัว', 'school'); }
-    else { s.f.eduEnd = 6; log('ครอบครัวไม่มีเงินส่งคุณไปโรงเรียน', 'bad'); }
+    if (Math.random() < p) { s.f.school = true; log(vary('school', MILESTONES.school), 'school'); }
+    else { s.f.eduEnd = 6; log(vary('noschool', MILESTONES.noschool), 'bad'); }
   }
   if (a === 12 && s.f.school) {
     s.f.eduLevel = 1;
     const p = clamp(0.3 + c.gdp / 45 + (s.q - 2) * 0.12 + s.st.know / 300, 0.1, 0.99);
-    if (Math.random() < p) log('คุณจบประถมและได้เรียนต่อมัธยม', 'school');
-    else { s.f.school = false; s.f.eduEnd = 12; log('คุณจบประถม แต่ไม่ได้เรียนต่อ', 'bad'); }
+    if (Math.random() < p) log(vary('secondary', MILESTONES.secondary), 'school');
+    else { s.f.school = false; s.f.eduEnd = 12; log(vary('nosecondary', MILESTONES.nosecondary), 'bad'); }
   }
-  if (a === 17 && s.f.school && !s.f.uni) { s.f.eduLevel = 2; log('คุณเรียนจบมัธยมปลาย', 'school'); }
+  if (a === 17 && s.f.school && !s.f.uni) { s.f.eduLevel = 2; log(vary('highschool', MILESTONES.highschool), 'school'); }
   if (a > 19 && s.f.school && !s.f.uni) { s.f.school = false; s.f.eduEnd = a; }
-  if (s.f.uni && s.f.school && a >= s.f.eduEnd) { s.f.school = false; s.f.eduLevel = 3; log('คุณได้รับปริญญา ครอบครัวมาถ่ายรูปกันพร้อมหน้า', 'good'); }
+  if (s.f.uni && s.f.school && a >= s.f.eduEnd) { s.f.school = false; s.f.eduLevel = 3; log(vary('degree', MILESTONES.degree), 'good'); }
 
   // การทำงาน
   const workAge = c.gdp < 10 && s.q <= 1 ? 13 : 16;
@@ -217,7 +218,7 @@ function advanceYear() {
   lifeStageFamily(s);
 
   // คำถามสะท้อนตัวเอง
-  if (REFLECT_AGES[a] && !settings.auto) s.queue.push({ type: 'reflect', q: REFLECT_AGES[a](s), age: a });
+  if (REFLECT_POOL[a] && !settings.auto) { const r = vary('reflect' + a, REFLECT_POOL[a]); s.queue.push({ type: 'reflect', q: r.q(s), answers: r.a, age: a }); }
 
   // ความตาย
   let q = s.lt.q(a) * (a >= 1 ? WEALTH_MORT[s.q] * Math.exp((HEALTH_REF - st.health) / 30) : WEALTH_MORT[s.q]);
@@ -240,7 +241,7 @@ function findJob(s) {
   const title = JOBS[tier][Math.floor(Math.random() * JOBS[tier].length)];
   s.f.job = title;
   s.money.income = incomeAt(s.c, p) * (s.f.migrant ? 2.5 : 1);
-  log(`คุณได้งานเป็น${title} รายได้ราว ${fmtBaht(s.money.income / 12)}/เดือน`, 'work');
+  log(fillT(vary('job', MILESTONES.job), { job: title, pay: fmtBaht(s.money.income / 12) }), 'work');
 }
 
 function rollEvent(s) {
@@ -250,32 +251,39 @@ function rollEvent(s) {
   // เรื่องครอบครัว (ความรัก แต่งงาน ลูก) มีโอกาสของตัวเองทุกปี
   if (!e && Math.random() < 0.45) {
     const fpool = EVENTS.filter(x => x.fam && ok(x));
-    if (fpool.length) e = pickW(fpool, x => x.w);
+    if (fpool.length) e = pickW(fpool, x => x.w * freshW(s, x));
   }
   if (!e && Math.random() < 0.6) {
     const pool = EVENTS.filter(x => !x.force && ok(x));
-    if (pool.length) e = pickW(pool, x => x.w);
+    if (pool.length) e = pickW(pool, x => x.w * freshW(s, x));
   }
   if (!e) return;
   s.used.add(e.id);
   let text = typeof e.t === 'function' ? e.t(s) : e.t;
+  if (Array.isArray(text)) text = vary(e.id, text);
+  else if (text && typeof e.t === 'string' && TEXT_VARIANTS[e.id]) text = vary(e.id, [text, ...TEXT_VARIANTS[e.id]]);
+  const ask = e.ask ? vary(e.id + ':ask', [].concat(e.ask, ASK_VARIANTS[e.id] || [])) : null;
   if (!e.choices) { const r = e.apply ? e.apply(s) : null; if (r) text = r; applyFx(s, e.fx, short(text)); log(text, fxKind(e.fx)); return; }
   if (e.apply) e.apply(s);
   if (settings.auto) {
     const opts = e.choices.filter(x => !x.need || x.need(s));
     const ch = opts.find(x => x.tag === s.focus) || opts[Math.floor(Math.random() * opts.length)];
-    resolveChoice(e, ch, text, true);
-  } else s.queue.push({ type: 'decision', e, text });
+    resolveChoice(e, ch, text, true, ask);
+  } else s.queue.push({ type: 'decision', e, text, ask });
 }
 
-function resolveChoice(e, ch, text, auto) {
-  let res = ch.t;
+// เหตุการณ์ที่เคยเกิดใน 3 ชีวิตล่าสุดมีโอกาสน้อยลง ส่วนเหตุการณ์ที่ยังไม่เคยเห็นเลยมีโอกาสมากขึ้น
+function freshW(s, e) { return s.recent.has(e.id) ? 0.3 : s.everSeen.has(e.id) ? 1 : 1.6; }
+
+function resolveChoice(e, ch, text, auto, ask) {
+  const key = e.id + '|' + ch.l;
+  let res = Array.isArray(ch.t) ? vary(key, ch.t) : ch.t && CHOICE_VARIANTS[key] ? vary(key, [ch.t, ...CHOICE_VARIANTS[key]]) : ch.t;
   const label = ch.money || ch.l;
   const cost = ch.cost ? ch.cost(S) : 0;
   if (cost) pay(S, -cost, label);
   if (ch.apply) { const r = ch.apply(S); if (r) res = r; }
   applyFx(S, ch.fx, label);
-  const head = e.ask ? `${text} ${e.ask}` : text;
+  const head = ask ? `${text} ${ask}` : text;
   log(`${head} → ${auto ? '(อัตโนมัติ) ' : ''}${ch.l}${cost ? ` (−${fmtBaht(cost)})` : ''}: ${res}`, 'choice');
 }
 // คำใบ้ผลของแต่ละทางเลือก (บอกทิศทาง ไม่บอกตัวเลข)
@@ -293,8 +301,13 @@ function choicePrice(ch) {
 }
 const fxKind = fx => { if (!fx) return ''; const v = (fx.health || 0) + (fx.happy || 0) + (fx.rel || 0) + (fx.know || 0); return v > 3 ? 'good' : v < -3 ? 'bad' : ''; };
 
+function rememberEvents(s) {
+  const r = store.get('recentEvents', []); r.unshift([...s.used]); store.set('recentEvents', r.slice(0, 3));
+  store.set('everSeen', [...new Set([...store.get('everSeen', []), ...s.used])]);
+}
 function die(cause) {
   S.alive = false; S.cause = cause;
+  rememberEvents(S);
   S.mood[S.age] = Math.round(S.st.happy);
   log(`คุณเสียชีวิตเมื่ออายุ ${S.age} ปี — ${cause}`, 'death');
 }
@@ -488,12 +501,12 @@ function showQueue() {
   if (it.type === 'decision') {
     const ok = it.e.choices.filter(c => !c.need || c.need(S)), m = S.money;
     openModal(`<p class="eyebrow">อายุ ${S.age} ปี · การตัดสินใจ</p>
-      ${it.e.ask ? `<p class="ctx">${esc(it.text)}</p><h3>${esc(it.e.ask)}</h3>` : `<h3>${esc(it.text)}</h3>`}
+      ${it.ask ? `<p class="ctx">${esc(it.text)}</p><h3>${esc(it.ask)}</h3>` : `<h3>${esc(it.text)}</h3>`}
       <div class="choices">${ok.map(c => `<button class="btn choice" data-c="${it.e.choices.indexOf(c)}"><span class="cl"><b>${esc(c.l)}</b>${choicePrice(c)}</span>${choiceHint(c) ? `<small>${esc(choiceHint(c))}</small>` : ''}</button>`).join('')}</div>
       <p class="muted small moneyline">${m.savings < 0 ? 'หนี้' : 'เงินเก็บ'}ตอนนี้ ${fmtBaht(Math.abs(m.savings))} · จำนวนเงินเทียบค่าครองชีพไทย</p>`);
-    $$('[data-c]').forEach(b => b.onclick = () => { S.queue.shift(); closeModal(); resolveChoice(it.e, it.e.choices[+b.dataset.c], it.text, false); doneQueue(); });
+    $$('[data-c]').forEach(b => b.onclick = () => { S.queue.shift(); closeModal(); resolveChoice(it.e, it.e.choices[+b.dataset.c], it.text, false, it.ask); doneQueue(); });
   } else if (it.type === 'reflect') {
-    const answers = reflectionChoices(it.age);
+    const answers = it.answers || [];
     openModal(`<p class="eyebrow">เวลาหยุดลงชั่วขณะ · อายุ ${it.age} ปี</p><h3>${esc(it.q)}</h3>
       <p class="muted small">เลือกคำตอบที่ตรงใจ หรือเขียนคำตอบของคุณเองก็ได้</p>
       <div class="choices">${answers.map((a, i) => `<button class="btn choice" data-ref="${i}">${esc(a.text)}</button>`).join('')}</div>
@@ -512,38 +525,6 @@ function showQueue() {
     $('#refOk').onclick = () => { const v = $('#refTxt').value.trim(); if (v) done(v); };
     $('#refSkip').onclick = () => done('');
   }
-}
-function reflectionChoices(age) {
-  const choices = {
-    5: [
-      { text: 'คล้ายกันมาก — มีคนดูแล ได้เล่นทุกวัน', fx: { happy: 2, rel: 1 } },
-      { text: 'ต่างกันมาก — ฉันได้อะไรหลายอย่างที่คนคนนี้ไม่ได้', fx: { know: 2, rel: 1 } },
-      { text: 'ต่างกัน แต่เด็กทุกคนอยากได้ความรักเหมือนกัน', fx: { rel: 3 } },
-    ],
-    15: [
-      { text: 'เรียนหนังสือ อ่านหนังสือสอบ', fx: { know: 3 } },
-      { text: 'อยู่กับเพื่อน เล่นกีฬา หรือทำกิจกรรม', fx: { rel: 2, health: 1 } },
-      { text: 'ช่วยงานที่บ้านหรือทำงานหาเงิน', fx: { rel: 2, know: 1 } },
-      { text: 'อยู่กับตัวเอง คิดเรื่องอนาคตเงียบ ๆ', fx: { happy: 2 } },
-    ],
-    30: [
-      { text: 'ไม่ — ฉันก็คงเลือกแบบนี้เหมือนกัน', fx: { happy: 3 } },
-      { text: 'ใช่ — ฉันจะกล้าเสี่ยงมากกว่านี้', fx: { know: 2, happy: 1 } },
-      { text: 'ใช่ — ฉันจะให้เวลากับคนที่รักมากกว่านี้', fx: { rel: 3 } },
-      { text: 'ไม่แน่ใจ ทางเลือกของคนคนนี้มีไม่มากนัก', fx: { know: 2 } },
-    ],
-    50: [
-      { text: 'มาก — เงินทำให้มีทางเลือกและไม่ต้องกังวล', fx: { happy: 1, know: 2 } },
-      { text: 'พอประมาณ — ขอแค่มีพอใช้ ไม่เป็นหนี้', fx: { happy: 3 } },
-      { text: 'น้อย — ความสัมพันธ์และสุขภาพสำคัญกว่า', fx: { rel: 2, health: 1 } },
-    ],
-    70: [
-      { text: 'ขอบคุณที่อดทนมาจนถึงวันนี้', fx: { happy: 3 } },
-      { text: 'ชีวิตคุณสอนอะไรฉันหลายอย่าง', fx: { know: 2, happy: 2 } },
-      { text: 'ฉันขอโทษที่บางเรื่องไม่เป็นอย่างที่หวัง', fx: { rel: 2, happy: 1 } },
-    ],
-  };
-  return choices[age] || [];
 }
 function doneQueue() { if (!S.queue.length) $('#waitFlag').hidden = true; render(); lastT = 0; }
 
@@ -615,7 +596,7 @@ function lifeStageFamily(s) {
   if (!s.f.leftHome && (s.f.married || a >= (s.c.gdp > 20 ? 22 : 26))) {
     s.f.leftHome = true;
     if (s.f.family === 'extended' && !s.f.migrant) log('คุณยังอยู่บ้านหลังเดิมกับครอบครัวใหญ่' + (s.f.married ? ' และพาคู่ชีวิตเข้ามาอยู่ด้วย' : ''));
-    else log(s.f.married ? 'คุณกับคู่ชีวิตย้ายออกมาสร้างบ้านของตัวเอง' : 'คุณย้ายออกจากบ้านมาใช้ชีวิตของตัวเอง', 'good');
+    else log(s.f.married ? vary('leaveMarried', MILESTONES.leaveMarried) : vary('leave', MILESTONES.leave), 'good');
   }
   for (const m of s.fam) if (m.role === 'child' && m.alive && m.age === 22) log(`${m.name} ${roleLabel(s, m)}ของคุณย้ายออกไปใช้ชีวิตของตัวเอง`);
   if (s.f.leftHome && a >= 40 && s.c.gdp < 40) for (const m of s.fam) {
@@ -772,7 +753,7 @@ function wire() {
       <div class="row end"><button class="btn ghost" id="mNo">อยู่ต่อ</button><button class="btn danger" id="mYes">ออก</button></div>`);
     paused = true;
     $('#mNo').onclick = () => { closeModal(); paused = false; lastT = 0; };
-    $('#mYes').onclick = () => { closeModal(); cancelAnimationFrame(rafId); S = null; paused = false; homeInit(); };
+    $('#mYes').onclick = () => { closeModal(); cancelAnimationFrame(rafId); rememberEvents(S); S = null; paused = false; homeInit(); };
   };
   $('#shopBtn').onclick = openShop;
   $('#log').onclick = e => { const li = e.target.closest('li[data-i]'); if (!li) return; const l = S.log[+li.dataset.i]; l.pin = !l.pin; renderLog(); };
